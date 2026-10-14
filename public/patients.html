@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Patients | CarePoint</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <!-- Header and Navigation -->
+    <header>
+        <a class="logo" href="index.html">✚ CarePoint</a>
+
+        <nav>
+            <a href="index.html">Home</a>
+            <a href="about.html">About</a>
+            <a href="services.html">Services</a>
+            <a href="doctors.html">Doctors</a>
+            <a class="active" href="patients.html">Patients</a>
+            <a href="contact.html">Contact</a>
+        </nav>
+    </header>
+
+    <!-- Page Hero Section -->
+    <section class="page-hero">
+        <p class="tag">PATIENT MANAGEMENT</p>
+        <h1>Patient <span>Records</span></h1>
+        <p>Register patients and view records saved in MySQL.</p>
+    </section>
+
+    <!-- Patient Management Section -->
+    <section class="section alternate">
+        <div class="management">
+
+            <!-- Patient Registration Form -->
+            <form id="patientForm" class="form-card">
+                <h2>Register Patient</h2>
+
+                <label for="patient_name">Patient Name *</label>
+                <input
+                    id="patient_name"
+                    name="patient_name"
+                    type="text"
+                    required
+                    maxlength="100"
+                >
+
+                <label for="age">Age</label>
+                <input
+                    id="age"
+                    name="age"
+                    type="number"
+                    min="0"
+                    max="130"
+                >
+
+                <label for="gender">Gender</label>
+                <select id="gender" name="gender">
+                    <option value="">Select Gender</option>
+                    <option>Female</option>
+                    <option>Male</option>
+                    <option>Other</option>
+                    <option>Prefer not to say</option>
+                </select>
+
+                <label for="phone">Phone</label>
+                <input
+                    id="phone"
+                    name="phone"
+                    type="tel"
+                    maxlength="20"
+                >
+
+                <label for="email">Email</label>
+                <input
+                    id="email"
+                    name="email"
+                    type="email"
+                    maxlength="100"
+                >
+
+                <label for="address">Address</label>
+                <textarea
+                    id="address"
+                    name="address"
+                    rows="3"
+                    maxlength="255"
+                ></textarea>
+
+                <button class="btn" type="submit">
+                    Save Patient
+                </button>
+
+                <p id="message" role="status"></p>
+            </form>
+
+            <!-- Patient Records Table -->
+            <div class="records">
+                <div class="records-title">
+                    <h2>Patient List</h2>
+
+                    <button
+                        class="btn btn-light"
+                        type="button"
+                        id="refresh"
+                    >
+                        Refresh
+                    </button>
+                </div>
+
+                <p id="recordMessage" role="status"></p>
+
+                <div class="table-scroll">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Name</th>
+                                <th>Age</th>
+                                <th>Phone</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+
+                        <tbody id="patientRows">
+                            <tr>
+                                <td colspan="5">Loading records...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <p>CarePoint Patient Management Website &copy; 2026</p>
+    </footer>
+
+    <!-- JavaScript -->
+    <script>
+        const form = document.getElementById("patientForm");
+        const message = document.getElementById("message");
+        const recordMessage = document.getElementById("recordMessage");
+        const patientRows = document.getElementById("patientRows");
+
+        // Load patient records
+        async function loadPatients() {
+            recordMessage.textContent = "";
+
+            try {
+                const response = await fetch("/api/patients");
+                const patients = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(
+                        patients.error || "Unable to load patients."
+                    );
+                }
+
+                patientRows.replaceChildren();
+
+                if (!patients.length) {
+                    patientRows.innerHTML = `
+                        <tr>
+                            <td colspan="5">No patient records found.</td>
+                        </tr>
+                    `;
+                    return;
+                }
+
+                patients.forEach(patient => {
+                    const row = document.createElement("tr");
+
+                    const values = [
+                        patient.patient_id,
+                        patient.patient_name,
+                        patient.age ?? "-",
+                        patient.phone || "-"
+                    ];
+
+                    values.forEach(value => {
+                        const cell = document.createElement("td");
+                        cell.textContent = value;
+                        row.appendChild(cell);
+                    });
+
+                    const actionCell = document.createElement("td");
+                    const button = document.createElement("button");
+
+                    button.type = "button";
+                    button.className = "delete-btn";
+                    button.textContent = "Delete";
+
+                    button.addEventListener("click", () => {
+                        deletePatient(patient.patient_id);
+                    });
+
+                    actionCell.appendChild(button);
+                    row.appendChild(actionCell);
+                    patientRows.appendChild(row);
+                });
+
+            } catch (error) {
+                recordMessage.textContent =
+                    error.message +
+                    " Check server and database connection.";
+
+                patientRows.innerHTML = `
+                    <tr>
+                        <td colspan="5">Records unavailable.</td>
+                    </tr>
+                `;
+            }
+        }
+
+        // Register a new patient
+        form.addEventListener("submit", async event => {
+            event.preventDefault();
+
+            message.textContent = "Saving patient...";
+
+            const patient = Object.fromEntries(
+                new FormData(form).entries()
+            );
+
+            try {
+                const response = await fetch("/api/patients", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify(patient)
+                });
+
+                const result = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(
+                        result.error || "Unable to save patient."
+                    );
+                }
+
+                message.textContent =
+                    "Patient saved successfully! ID: " +
+                    result.patient_id;
+
+                form.reset();
+
+                await loadPatients();
+
+            } catch (error) {
+                message.textContent = error.message;
+            }
+        });
+
+        // Delete a patient record
+        async function deletePatient(id) {
+            const confirmed = confirm(
+                "Delete patient record #" + id + "?"
+            );
+
+            if (!confirmed) {
+                return;
+            }
+
+            try {
+                const response = await fetch(
+                    "/api/patients/" + id,
+                    {
+                        method: "DELETE"
+                    }
+                );
+
+                const result = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(
+                        result.error || "Unable to delete patient."
+                    );
+                }
+
+                recordMessage.textContent = result.message;
+
+                await loadPatients();
+
+            } catch (error) {
+                recordMessage.textContent = error.message;
+            }
+        }
+
+        // Refresh patient records
+        document
+            .getElementById("refresh")
+            .addEventListener("click", loadPatients);
+
+        // Load records when the page opens
+        loadPatients();
+    </script>
+
+</body>
+</html>
